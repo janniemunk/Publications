@@ -1,0 +1,1978 @@
+---
+title: 'Supplementary RMD: Bacteria from the genus *Arcobacter* are abundant in effluent from wastewater treatment plants '
+author: "Jannie Munk Kristensen"
+date: "31 Jan 2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+### Project scope
+This material contain the microbial analysis of full scale wastewater treatment plants based on 16S rRNA gene amplicon sequencing.The microbial community has been sequenced using primers covering the V1-V3 region of the 16S rRNA gene. (27F (AGAGTTTGATCCTGGCTCAG, Lane 1991) and 534R (ATTACCGCGGCTGCTGG, Muyzer et al, 1993)). See Kristensen et al. 2020: "Bacteria from the genus *Arcobacter* are abundant in effluent from wastewater treatment plants" for further details. Raw sequencing data is available in the European Nucleotide Archive with the project ID [PRJEB28796].
+
+
+### Load libraries
+The data analysis is primarily performed using the ampvis2 and mmgenome2 packages, but other packages are also used.
+```{r load_ampvis, warning=FALSE, message=FALSE }
+library(ampvis2)
+library(cowplot)
+library(plyr)
+library(ggrepel)
+library(plotly)
+library(gridExtra)
+library(grid)
+library("vegan")
+```
+
+### Loading and subsetting data 
+```{r load_dataa, warning=FALSE, message=FALSE}
+ 
+myotutable <- read.csv("ASVtable_MIDAS.tsv", sep = "\t", check.names = FALSE)
+mymetadata <- read.csv("metadataanonymised.txt", sep = "\t", check.names = FALSE)
+
+metadatanumbers <- read.delim(file = "metadatanumberswithoutbadsamplessimplifiedanonymised.txt", header = T, sep = "\t")
+
+
+d <- amp_load(otutable = myotutable, 
+              metadata = mymetadata)
+
+dnumbers <- amp_load(otutable = data.table::fread("ASVtable_MIDAS.tsv"), metadata = metadatanumbers)
+
+
+dnumbers <- amp_subset_samples(dnumbers, Type == "Sample")
+d <- amp_subset_samples(d, Type == "Sample")
+
+dcontrols <- amp_load(otutable = data.table::fread("ASVtable_MIDAS.tsv"), metadata = metadatanumbers)
+
+dcontrols <- amp_subset_samples(dcontrols, Type == "Control")
+
+```
+### Figure 1 PCA
+Microbial community structure of influent, process tank and effluent of 14 full-scale WWTPs over a 3 month period as determined by 16S rRNA amplicon sequencing and principal component analysis. All samples are shown (influent wastewater colored in green, process tank in blue, and effluent in red).
+
+Before analyzing the data it is often convenient to remove the lower abundant ASVs, because they cause noise in the dataset. This can be done using the filter_taxa phyloseq function. Here we decide for the PCA to keep ASVs with an abundance of 0.1 % or more in at least one sample.
+```{r PCA, warning=FALSE, message=FALSE, fig.height=7, fig.width=7}
+
+
+dpca <- amp_subset_samples(d, Plant %in% c("WWTP A","WWTP B", "WWTP G","WWTP D","WWTP E","WWTP F","WWTP H", "WWTP I", "WWTP J", "WWTP K", "WWTP L", "WWTP M", "WWTP N"))
+
+
+dpca <- amp_subset_samples(dpca, Location %in% c("Influent", "Process tank", "Effluent"))
+
+drpca <- amp_subset_samples(dpca, minreads = 10000)
+
+
+fig1a <- amp_ordinate(drpca, 
+             type = "pca",
+             distmeasure = "bray",
+             sample_color_by = "Location",
+             sample_colorframe = TRUE,
+             sample_colorframe_label = "Location",
+             sample_colorframe_label_size = 5,
+             sample_label_size = 5)+theme_cowplot()+theme(legend.position="none")
+fig1a
+
+
+ggsave(filename = "fig1a.pdf",plot = fig1a,width = 7,height = 7)
+ggsave(filename = "fig1a.png",plot = fig1a,width = 7,height = 7)
+ggsave(filename = "fig1a.tiff",plot = fig1a,width = 5,height = 5)
+
+
+```
+
+### Testing significance between groups with adonis (vegan package)
+
+The adonis function from the Vegan package has been used to test significance between the different sample types grouped for each plant to test if sampling locations are significantly different from each other
+ 
+```{r}
+
+asvtable.samples.bray <- read.csv("ASVtable_MIDAS_bray.tsv.txt", header=TRUE, sep = "\t", check.names = FALSE)
+  metadata.samples <- read.csv("metadataanonymised_bray.txt", sep = "\t", check.names = FALSE)
+
+
+
+dim(asvtable.samples.bray)
+dim(metadata.samples)
+
+
+t <- t(asvtable.samples.bray)
+
+braycurtis.d=vegdist(t(asvtable.samples.bray), method="bray")
+
+
+adonis(formula = braycurtis.d ~ Location, data = metadata.samples)
+
+```
+Test show that sampling locations are significantly different from each other
+
+### Test if for some plants effluent community compositions are more similar to process tanks than influent 
+
+#### Plant A
+
+```{r}
+
+dpcaA <- amp_subset_samples(d, Plant %in% c("WWTP A"))
+
+dpcaA <- amp_subset_samples(dpcaA, Location %in% c("Influent", "Process tank", "Effluent"))
+
+drpcaA <- amp_subset_samples(dpcaA, minreads = 10000)
+
+
+amp_ordinate(drpcaA, 
+             type = "pca",
+             distmeasure = "bray",
+             sample_color_by = "Location",
+             sample_colorframe = TRUE,
+             sample_colorframe_label = "Location",
+             sample_colorframe_label_size = 7,
+             sample_label_size = 7)+theme_cowplot()+theme(legend.position="none")
+
+
+
+asvtable.samples.brayA <- read.csv("statistics/A/infeff/ASVtable_MIDAS.tsv", header=TRUE, sep = "\t", check.names = FALSE)
+  metadata.samplesA <- read.csv("statistics/A/infeff/metadataanonymised_A_bray.txt", sep = "\t", check.names = FALSE)
+
+
+dim(asvtable.samples.brayA)
+dim(metadata.samplesA)
+
+
+t <- t(asvtable.samples.brayA)
+
+braycurtis.d=vegdist(t(asvtable.samples.brayA), method="bray")
+
+
+adonis(formula = braycurtis.d ~ Location, data = metadata.samplesA)
+
+
+asvtable.samples.brayA <- read.csv("statistics/A/proeff/ASVtable_MIDAS.tsv", header=TRUE, sep = "\t", check.names = FALSE)
+  metadata.samplesA <- read.csv("statistics/A/proeff/metadataanonymised_A_bray.txt", sep = "\t", check.names = FALSE)
+
+
+dim(asvtable.samples.brayA)
+dim(metadata.samplesA)
+
+
+t <- t(asvtable.samples.brayA)
+
+braycurtis.d=vegdist(t(asvtable.samples.brayA), method="bray")
+
+
+adonis(formula = braycurtis.d ~ Location, data = metadata.samplesA)
+
+
+
+
+```
+Plant A has long distance to both influent and process tank suggesting community is a mixture of both 
+
+#### Plant B
+
+```{r}
+
+
+dpcaB <- amp_subset_samples(d, Plant %in% c("WWTP B"))
+
+dpcaB <- amp_subset_samples(dpcaB, Location %in% c("Influent", "Process tank", "Effluent"))
+
+drpcaB <- amp_subset_samples(dpcaB, minreads = 10000)
+
+
+amp_ordinate(drpcaB, 
+             type = "pca",
+             distmeasure = "bray",
+             sample_color_by = "Location",
+             sample_colorframe = TRUE,
+             sample_colorframe_label = "Location",
+             sample_colorframe_label_size = 7,
+             sample_label_size = 7)+theme_cowplot()+theme(legend.position="none")
+
+
+
+asvtable.samples.brayB <- read.csv("statistics/B/infeff/ASVtable_MIDAS.tsv", header=TRUE, sep = "\t", check.names = FALSE)
+  metadata.samplesB <- read.csv("statistics/B/infeff/metadataanonymised_B_bray.txt", sep = "\t", check.names = FALSE)
+
+
+dim(asvtable.samples.brayB)
+dim(metadata.samplesB)
+
+
+t <- t(asvtable.samples.brayB)
+
+braycurtis.d=vegdist(t(asvtable.samples.brayB), method="bray")
+
+
+adonis(formula = braycurtis.d ~ Location, data = metadata.samplesB)
+
+
+asvtable.samples.brayB <- read.csv("statistics/B/proeff/ASVtable_MIDAS.tsv", header=TRUE, sep = "\t", check.names = FALSE)
+  metadata.samplesB <- read.csv("statistics/B/proeff/metadataanonymised_B_bray.txt", sep = "\t", check.names = FALSE)
+
+
+dim(asvtable.samples.brayB)
+dim(metadata.samplesB)
+
+
+t <- t(asvtable.samples.brayB)
+
+braycurtis.d=vegdist(t(asvtable.samples.brayB), method="bray")
+
+
+adonis(formula = braycurtis.d ~ Location, data = metadata.samplesB)
+
+
+```
+Plant B has long distance to both influent and process tank suggesting community is a mixture of both 
+
+#### Plant C
+
+```{r}
+
+
+dpcaC <- amp_subset_samples(d, Plant %in% c("WWTP C"))
+
+dpcaC <- amp_subset_samples(dpcaC, Location %in% c("Influent", "Process tank", "Effluent"))
+
+drpcaC <- amp_subset_samples(dpcaC, minreads = 10000)
+
+
+amp_ordinate(drpcaC, 
+             type = "pca",
+             distmeasure = "bray",
+             sample_color_by = "Location",
+             sample_colorframe = TRUE,
+             sample_colorframe_label = "Location",
+             sample_colorframe_label_size = 7,
+             sample_label_size = 7)+theme_cowplot()+theme(legend.position="none")
+
+
+
+asvtable.samples.brayC <- read.csv("statistics/C/infeff/ASVtable_MIDAS.tsv", header=TRUE, sep = "\t", check.names = FALSE)
+  metadata.samplesC <- read.csv("statistics/C/infeff/metadataanonymised_C_bray.txt", sep = "\t", check.names = FALSE)
+
+
+dim(asvtable.samples.brayC)
+dim(metadata.samplesC)
+
+
+t <- t(asvtable.samples.brayC)
+
+braycurtis.d=vegdist(t(asvtable.samples.brayC), method="bray")
+
+
+adonis(formula = braycurtis.d ~ Location, data = metadata.samplesC)
+
+
+asvtable.samples.brayC <- read.csv("statistics/C/proeff/ASVtable_MIDAS.tsv", header=TRUE, sep = "\t", check.names = FALSE)
+  metadata.samplesC <- read.csv("statistics/C/proeff/metadataanonymised_C_bray.txt", sep = "\t", check.names = FALSE)
+
+
+dim(asvtable.samples.brayC)
+dim(metadata.samplesC)
+
+
+t <- t(asvtable.samples.brayC)
+
+braycurtis.d=vegdist(t(asvtable.samples.brayC), method="bray")
+
+
+adonis(formula = braycurtis.d ~ Location, data = metadata.samplesC)
+
+
+```
+Plant C has long distance to both influent and process tank suggesting community is a mixture of both 
+
+
+#### Plant D
+
+```{r}
+
+
+dpcaD <- amp_subset_samples(d, Plant %in% c("WWTP D"))
+
+dpcaD <- amp_subset_samples(dpcaD, Location %in% c("Influent", "Process tank", "Effluent"))
+
+drpcaD <- amp_subset_samples(dpcaD, minreads = 10000)
+
+
+amp_ordinate(drpcaD, 
+             type = "pca",
+             distmeasure = "bray",
+             sample_color_by = "Location",
+             sample_colorframe = TRUE,
+             sample_colorframe_label = "Location",
+             sample_colorframe_label_size = 7,
+             sample_label_size = 7)+theme_cowplot()+theme(legend.position="none")
+
+
+
+asvtable.samples.brayD <- read.csv("statistics/D/infeff/ASVtable_MIDAS.tsv", header=TRUE, sep = "\t", check.names = FALSE)
+  metadata.samplesD <- read.csv("statistics/D/infeff/metadataanonymised_D_bray.txt", sep = "\t", check.names = FALSE)
+
+
+dim(asvtable.samples.brayD)
+dim(metadata.samplesD)
+
+
+t <- t(asvtable.samples.brayD)
+
+braycurtis.d=vegdist(t(asvtable.samples.brayD), method="bray")
+
+
+adonis(formula = braycurtis.d ~ Location, data = metadata.samplesD)
+
+
+asvtable.samples.brayD <- read.csv("statistics/D/proeff/ASVtable_MIDAS.tsv", header=TRUE, sep = "\t", check.names = FALSE)
+  metadata.samplesD <- read.csv("statistics/D/proeff/metadataanonymised_D_bray.txt", sep = "\t", check.names = FALSE)
+
+
+dim(asvtable.samples.brayD)
+dim(metadata.samplesD)
+
+
+t <- t(asvtable.samples.brayD)
+
+braycurtis.d=vegdist(t(asvtable.samples.brayD), method="bray")
+
+
+adonis(formula = braycurtis.d ~ Location, data = metadata.samplesD)
+
+
+```
+Plant D has a longer distance to influent than process tank and the effluent community is not significantly different from process tank community suggesting community contain most process tank bacteria 
+
+#### Plant E
+
+```{r}
+
+
+dpcaE <- amp_subset_samples(d, Plant %in% c("WWTP E"))
+
+dpcaE <- amp_subset_samples(dpcaE, Location %in% c("Influent", "Process tank", "Effluent"))
+
+drpcaE <- amp_subset_samples(dpcaE, minreads = 10000)
+
+
+amp_ordinate(drpcaE, 
+             type = "pca",
+             distmeasure = "bray",
+             sample_color_by = "Location",
+             sample_colorframe = TRUE,
+             sample_colorframe_label = "Location",
+             sample_colorframe_label_size = 7,
+             sample_label_size = 7)+theme_cowplot()+theme(legend.position="none")
+
+
+
+asvtable.samples.brayE <- read.csv("statistics/E/infeff/ASVtable_MIDAS.tsv", header=TRUE, sep = "\t", check.names = FALSE)
+  metadata.samplesE <- read.csv("statistics/E/infeff/metadataanonymised_E_bray.txt", sep = "\t", check.names = FALSE)
+
+
+dim(asvtable.samples.brayE)
+dim(metadata.samplesE)
+
+
+t <- t(asvtable.samples.brayE)
+
+braycurtis.d=vegdist(t(asvtable.samples.brayE), method="bray")
+
+
+adonis(formula = braycurtis.d ~ Location, data = metadata.samplesE)
+
+
+asvtable.samples.brayE <- read.csv("statistics/E/proeff/ASVtable_MIDAS.tsv", header=TRUE, sep = "\t", check.names = FALSE)
+  metadata.samplesE <- read.csv("statistics/E/proeff/metadataanonymised_E_bray.txt", sep = "\t", check.names = FALSE)
+
+
+dim(asvtable.samples.brayE)
+dim(metadata.samplesE)
+
+
+t <- t(asvtable.samples.brayE)
+
+braycurtis.d=vegdist(t(asvtable.samples.brayE), method="bray")
+
+
+adonis(formula = braycurtis.d ~ Location, data = metadata.samplesE)
+
+
+```
+Plant E has long distance to both influent and process tank suggesting community is a mixture of both 
+
+#### Plant F
+
+```{r}
+
+
+dpcaF <- amp_subset_samples(d, Plant %in% c("WWTP F"))
+
+dpcaF <- amp_subset_samples(dpcaF, Location %in% c("Influent", "Process tank", "Effluent"))
+
+drpcaF <- amp_subset_samples(dpcaF, minreads = 10000)
+
+
+amp_ordinate(drpcaF, 
+             type = "pca",
+             distmeasure = "bray",
+             sample_color_by = "Location",
+             sample_colorframe = TRUE,
+             sample_colorframe_label = "Location",
+             sample_colorframe_label_size = 7,
+             sample_label_size = 7)+theme_cowplot()+theme(legend.position="none")
+
+
+
+asvtable.samples.brayF <- read.csv("statistics/F/infeff/ASVtable_MIDAS.tsv", header=TRUE, sep = "\t", check.names = FALSE)
+  metadata.samplesF <- read.csv("statistics/F/infeff/metadataanonymised_F_bray.txt", sep = "\t", check.names = FALSE)
+
+
+dim(asvtable.samples.brayF)
+dim(metadata.samplesF)
+
+
+t <- t(asvtable.samples.brayF)
+
+braycurtis.d=vegdist(t(asvtable.samples.brayF), method="bray")
+
+
+adonis(formula = braycurtis.d ~ Location, data = metadata.samplesF)
+
+
+asvtable.samples.brayF <- read.csv("statistics/F/proeff/ASVtable_MIDAS.tsv", header=TRUE, sep = "\t", check.names = FALSE)
+  metadata.samplesF <- read.csv("statistics/F/proeff/metadataanonymised_F_bray.txt", sep = "\t", check.names = FALSE)
+
+
+dim(asvtable.samples.brayF)
+dim(metadata.samplesF)
+
+
+t <- t(asvtable.samples.brayF)
+
+braycurtis.d=vegdist(t(asvtable.samples.brayF), method="bray")
+
+
+adonis(formula = braycurtis.d ~ Location, data = metadata.samplesF)
+
+
+```
+Plant F has a longer distance to influent than process tank and the effluent community is not significantly different from process tank community suggesting community contain most process tank bacteria 
+
+#### Plant G
+
+```{r}
+
+
+dpcaG <- amp_subset_samples(d, Plant %in% c("WWTP G"))
+
+dpcaG <- amp_subset_samples(dpcaG, Location %in% c("Influent", "Process tank", "Effluent"))
+
+drpcaG <- amp_subset_samples(dpcaG, minreads = 10000)
+
+
+amp_ordinate(drpcaG, 
+             type = "pca",
+             distmeasure = "bray",
+             sample_color_by = "Location",
+             sample_colorframe = TRUE,
+             sample_colorframe_label = "Location",
+             sample_colorframe_label_size = 7,
+             sample_label_size = 7)+theme_cowplot()+theme(legend.position="none")
+
+
+
+asvtable.samples.brayG <- read.csv("statistics/G/infeff/ASVtable_MIDAS.tsv", header=TRUE, sep = "\t", check.names = FALSE)
+  metadata.samplesG <- read.csv("statistics/G/infeff/metadataanonymised_G_bray.txt", sep = "\t", check.names = FALSE)
+
+
+dim(asvtable.samples.brayG)
+dim(metadata.samplesG)
+
+
+t <- t(asvtable.samples.brayG)
+
+braycurtis.d=vegdist(t(asvtable.samples.brayG), method="bray")
+
+
+adonis(formula = braycurtis.d ~ Location, data = metadata.samplesG)
+
+
+asvtable.samples.brayG <- read.csv("statistics/G/proeff/ASVtable_MIDAS.tsv", header=TRUE, sep = "\t", check.names = FALSE)
+  metadata.samplesG <- read.csv("statistics/G/proeff/metadataanonymised_G_bray.txt", sep = "\t", check.names = FALSE)
+
+
+dim(asvtable.samples.brayG)
+dim(metadata.samplesG)
+
+
+t <- t(asvtable.samples.brayG)
+
+braycurtis.d=vegdist(t(asvtable.samples.brayG), method="bray")
+
+
+adonis(formula = braycurtis.d ~ Location, data = metadata.samplesG)
+
+
+```
+Plant G has long distance to both influent and process tank suggesting community is a mixture of both 
+
+#### Plant H
+
+```{r}
+
+dpcaH <- amp_subset_samples(d, Plant %in% c("WWTP H"))
+
+dpcaH <- amp_subset_samples(dpcaH, Location %in% c("Influent", "Process tank", "Effluent"))
+
+drpcaH <- amp_subset_samples(dpcaH, minreads = 10000)
+
+
+amp_ordinate(drpcaH, 
+             type = "pca",
+             distmeasure = "bray",
+             sample_color_by = "Location",
+             sample_colorframe = TRUE,
+             sample_colorframe_label = "Location",
+             sample_colorframe_label_size = 7,
+             sample_label_size = 7)+theme_cowplot()+theme(legend.position="none")
+
+
+
+asvtable.samples.brayH <- read.csv("statistics/H/infeff/ASVtable_MIDAS.tsv", header=TRUE, sep = "\t", check.names = FALSE)
+  metadata.samplesH <- read.csv("statistics/H/infeff/metadataanonymised_H_bray.txt", sep = "\t", check.names = FALSE)
+
+
+dim(asvtable.samples.brayH)
+dim(metadata.samplesH)
+
+
+t <- t(asvtable.samples.brayH)
+
+braycurtis.d=vegdist(t(asvtable.samples.brayH), method="bray")
+
+
+adonis(formula = braycurtis.d ~ Location, data = metadata.samplesH)
+
+
+asvtable.samples.brayH <- read.csv("statistics/H/proeff/ASVtable_MIDAS.tsv", header=TRUE, sep = "\t", check.names = FALSE)
+  metadata.samplesH <- read.csv("statistics/H/proeff/metadataanonymised_H_bray.txt", sep = "\t", check.names = FALSE)
+
+
+dim(asvtable.samples.brayH)
+dim(metadata.samplesH)
+
+
+t <- t(asvtable.samples.brayH)
+
+braycurtis.d=vegdist(t(asvtable.samples.brayH), method="bray")
+
+
+adonis(formula = braycurtis.d ~ Location, data = metadata.samplesH)
+
+
+```
+Plant H has long distance to both influent and process tank suggesting community is a mixture of both 
+
+#### Plant I
+
+```{r}
+
+
+dpcaI <- amp_subset_samples(d, Plant %in% c("WWTP I"))
+
+dpcaI <- amp_subset_samples(dpcaI, Location %in% c("Influent", "Process tank", "Effluent"))
+
+drpcaI <- amp_subset_samples(dpcaI, minreads = 10000)
+
+
+amp_ordinate(drpcaI, 
+             type = "pca",
+             distmeasure = "bray",
+             sample_color_by = "Location",
+             sample_colorframe = TRUE,
+             sample_colorframe_label = "Location",
+             sample_colorframe_label_size = 7,
+             sample_label_size = 7)+theme_cowplot()+theme(legend.position="none")
+
+
+
+asvtable.samples.brayI <- read.csv("statistics/I/infeff/ASVtable_MIDAS.tsv", header=TRUE, sep = "\t", check.names = FALSE)
+  metadata.samplesI <- read.csv("statistics/I/infeff/metadataanonymised_I_bray.txt", sep = "\t", check.names = FALSE)
+
+
+dim(asvtable.samples.brayI)
+dim(metadata.samplesI)
+
+
+t <- t(asvtable.samples.brayI)
+
+braycurtis.d=vegdist(t(asvtable.samples.brayI), method="bray")
+
+
+adonis(formula = braycurtis.d ~ Location, data = metadata.samplesI)
+
+
+asvtable.samples.brayI <- read.csv("statistics/I/proeff/ASVtable_MIDAS.tsv", header=TRUE, sep = "\t", check.names = FALSE)
+  metadata.samplesI <- read.csv("statistics/I/proeff/metadataanonymised_I_bray.txt", sep = "\t", check.names = FALSE)
+
+
+dim(asvtable.samples.brayI)
+dim(metadata.samplesI)
+
+
+t <- t(asvtable.samples.brayI)
+
+braycurtis.d=vegdist(t(asvtable.samples.brayI), method="bray")
+
+
+adonis(formula = braycurtis.d ~ Location, data = metadata.samplesI)
+
+
+```
+Plant I has long distance to both influent and process tank suggesting community is a mixture of both 
+
+#### Plant J
+
+```{r}
+
+
+dpcaJ <- amp_subset_samples(d, Plant %in% c("WWTP J"))
+
+dpcaJ <- amp_subset_samples(dpcaJ, Location %in% c("Influent", "Process tank", "Effluent"))
+
+drpcaJ <- amp_subset_samples(dpcaJ, minreads = 10000)
+
+
+amp_ordinate(drpcaJ, 
+             type = "pca",
+             distmeasure = "bray",
+             sample_color_by = "Location",
+             sample_colorframe = TRUE,
+             sample_colorframe_label = "Location",
+             sample_colorframe_label_size = 7,
+             sample_label_size = 7)+theme_cowplot()+theme(legend.position="none")
+
+
+
+asvtable.samples.brayJ <- read.csv("statistics/J/infeff/ASVtable_MIDAS.tsv", header=TRUE, sep = "\t", check.names = FALSE)
+  metadata.samplesJ <- read.csv("statistics/J/infeff/metadataanonymised_J_bray.txt", sep = "\t", check.names = FALSE)
+
+
+dim(asvtable.samples.brayJ)
+dim(metadata.samplesJ)
+
+
+t <- t(asvtable.samples.brayJ)
+
+braycurtis.d=vegdist(t(asvtable.samples.brayJ), method="bray")
+
+
+adonis(formula = braycurtis.d ~ Location, data = metadata.samplesJ)
+
+
+asvtable.samples.brayJ <- read.csv("statistics/J/proeff/ASVtable_MIDAS.tsv", header=TRUE, sep = "\t", check.names = FALSE)
+  metadata.samplesJ <- read.csv("statistics/J/proeff/metadataanonymised_J_bray.txt", sep = "\t", check.names = FALSE)
+
+
+dim(asvtable.samples.brayJ)
+dim(metadata.samplesJ)
+
+
+t <- t(asvtable.samples.brayJ)
+
+braycurtis.d=vegdist(t(asvtable.samples.brayJ), method="bray")
+
+
+adonis(formula = braycurtis.d ~ Location, data = metadata.samplesJ)
+
+
+```
+Plant J has long distance to both influent and process tank suggesting community is a mixture of both 
+
+#### Plant K
+
+```{r}
+
+dpcaK <- amp_subset_samples(d, Plant %in% c("WWTP K"))
+
+dpcaK <- amp_subset_samples(dpcaK, Location %in% c("Influent", "Process tank", "Effluent"))
+
+drpcaK <- amp_subset_samples(dpcaK, minreads = 10000)
+
+
+amp_ordinate(drpcaK, 
+             type = "pca",
+             distmeasure = "bray",
+             sample_color_by = "Location",
+             sample_colorframe = TRUE,
+             sample_colorframe_label = "Location",
+             sample_colorframe_label_size = 7,
+             sample_label_size = 7)+theme_cowplot()+theme(legend.position="none")
+
+
+
+asvtable.samples.brayK <- read.csv("statistics/K/infeff/ASVtable_MIDAS.tsv", header=TRUE, sep = "\t", check.names = FALSE)
+  metadata.samplesK <- read.csv("statistics/K/infeff/metadataanonymised_K_bray.txt", sep = "\t", check.names = FALSE)
+
+
+dim(asvtable.samples.brayK)
+dim(metadata.samplesK)
+
+
+t <- t(asvtable.samples.brayK)
+
+braycurtis.d=vegdist(t(asvtable.samples.brayK), method="bray")
+
+
+adonis(formula = braycurtis.d ~ Location, data = metadata.samplesK)
+
+
+asvtable.samples.brayK <- read.csv("statistics/K/proeff/ASVtable_MIDAS.tsv", header=TRUE, sep = "\t", check.names = FALSE)
+  metadata.samplesK <- read.csv("statistics/K/proeff/metadataanonymised_K_bray.txt", sep = "\t", check.names = FALSE)
+
+
+dim(asvtable.samples.brayK)
+dim(metadata.samplesK)
+
+
+t <- t(asvtable.samples.brayK)
+
+braycurtis.d=vegdist(t(asvtable.samples.brayK), method="bray")
+
+
+adonis(formula = braycurtis.d ~ Location, data = metadata.samplesK)
+
+
+```
+Plant K has long distance to both influent and process tank suggesting community is a mixture of both 
+
+#### Plant L
+
+```{r}
+
+
+dpcaL <- amp_subset_samples(d, Plant %in% c("WWTP L"))
+
+dpcaL <- amp_subset_samples(dpcaL, Location %in% c("Influent", "Process tank", "Effluent"))
+
+drpcaL <- amp_subset_samples(dpcaL, minreads = 10000)
+
+
+amp_ordinate(drpcaL, 
+             type = "pca",
+             distmeasure = "bray",
+             sample_color_by = "Location",
+             sample_colorframe = TRUE,
+             sample_colorframe_label = "Location",
+             sample_colorframe_label_size = 7,
+             sample_label_size = 7)+theme_cowplot()+theme(legend.position="none")
+
+
+
+asvtable.samples.brayL <- read.csv("statistics/L/infeff/ASVtable_MIDAS.tsv", header=TRUE, sep = "\t", check.names = FALSE)
+  metadata.samplesL <- read.csv("statistics/L/infeff/metadataanonymised_L_bray.txt", sep = "\t", check.names = FALSE)
+
+
+dim(asvtable.samples.brayL)
+dim(metadata.samplesL)
+
+
+t <- t(asvtable.samples.brayL)
+
+braycurtis.d=vegdist(t(asvtable.samples.brayL), method="bray")
+
+
+adonis(formula = braycurtis.d ~ Location, data = metadata.samplesL)
+
+
+asvtable.samples.brayL <- read.csv("statistics/L/proeff/ASVtable_MIDAS.tsv", header=TRUE, sep = "\t", check.names = FALSE)
+  metadata.samplesL <- read.csv("statistics/L/proeff/metadataanonymised_L_bray.txt", sep = "\t", check.names = FALSE)
+
+
+dim(asvtable.samples.brayL)
+dim(metadata.samplesL)
+
+
+t <- t(asvtable.samples.brayL)
+
+braycurtis.d=vegdist(t(asvtable.samples.brayL), method="bray")
+
+
+adonis(formula = braycurtis.d ~ Location, data = metadata.samplesL)
+
+
+```
+Plant L has long distance to both influent and process tank suggesting community is a mixture of both 
+
+#### Plant M
+
+```{r}
+
+dpcaM <- amp_subset_samples(d, Plant %in% c("WWTP M"))
+
+dpcaM <- amp_subset_samples(dpcaM, Location %in% c("Influent", "Process tank", "Effluent"))
+
+drpcaM <- amp_subset_samples(dpcaM, minreads = 10000)
+
+
+amp_ordinate(drpcaM, 
+             type = "pca",
+             distmeasure = "bray",
+             sample_color_by = "Location",
+             sample_colorframe = TRUE,
+             sample_colorframe_label = "Location",
+             sample_colorframe_label_size = 7,
+             sample_label_size = 7)+theme_cowplot()+theme(legend.position="none")
+
+
+
+asvtable.samples.brayM <- read.csv("statistics/M/infeff/ASVtable_MIDAS.tsv", header=TRUE, sep = "\t", check.names = FALSE)
+  metadata.samplesM <- read.csv("statistics/M/infeff/metadataanonymised_M_bray.txt", sep = "\t", check.names = FALSE)
+
+
+dim(asvtable.samples.brayM)
+dim(metadata.samplesM)
+
+
+t <- t(asvtable.samples.brayM)
+
+braycurtis.d=vegdist(t(asvtable.samples.brayM), method="bray")
+
+
+adonis(formula = braycurtis.d ~ Location, data = metadata.samplesM)
+
+
+asvtable.samples.brayM <- read.csv("statistics/M/proeff/ASVtable_MIDAS.tsv", header=TRUE, sep = "\t", check.names = FALSE)
+  metadata.samplesM <- read.csv("statistics/M/proeff/metadataanonymised_M_bray.txt", sep = "\t", check.names = FALSE)
+
+
+dim(asvtable.samples.brayM)
+dim(metadata.samplesM)
+
+
+t <- t(asvtable.samples.brayM)
+
+braycurtis.d=vegdist(t(asvtable.samples.brayM), method="bray")
+
+
+adonis(formula = braycurtis.d ~ Location, data = metadata.samplesM)
+
+
+```
+Plant M has long distance to both influent and process tank suggesting community is a mixture of both 
+
+
+#### Plant N
+
+```{r}
+
+
+dpcaN <- amp_subset_samples(d, Plant %in% c("WWTP N"))
+
+dpcaN <- amp_subset_samples(dpcaN, Location %in% c("Influent", "Process tank", "Effluent"))
+
+drpcaN <- amp_subset_samples(dpcaN, minreads = 10000)
+
+
+amp_ordinate(drpcaN, 
+             type = "pca",
+             distmeasure = "bray",
+             sample_color_by = "Location",
+             sample_colorframe = TRUE,
+             sample_colorframe_label = "Location",
+             sample_colorframe_label_size = 7,
+             sample_label_size = 7)+theme_cowplot()+theme(legend.position="none")
+
+
+
+asvtable.samples.brayN <- read.csv("statistics/N/infeff/ASVtable_MIDAS.tsv", header=TRUE, sep = "\t", check.names = FALSE)
+  metadata.samplesN <- read.csv("statistics/N/infeff/metadataanonymised_N_bray.txt", sep = "\t", check.names = FALSE)
+
+
+dim(asvtable.samples.brayN)
+dim(metadata.samplesN)
+
+
+t <- t(asvtable.samples.brayN)
+
+braycurtis.d=vegdist(t(asvtable.samples.brayN), method="bray")
+
+
+adonis(formula = braycurtis.d ~ Location, data = metadata.samplesN)
+
+
+asvtable.samples.brayN <- read.csv("statistics/N/proeff/ASVtable_MIDAS.tsv", header=TRUE, sep = "\t", check.names = FALSE)
+  metadata.samplesN <- read.csv("statistics/N/proeff/metadataanonymised_N_bray.txt", sep = "\t", check.names = FALSE)
+
+
+dim(asvtable.samples.brayN)
+dim(metadata.samplesN)
+
+
+t <- t(asvtable.samples.brayN)
+
+braycurtis.d=vegdist(t(asvtable.samples.brayN), method="bray")
+
+
+adonis(formula = braycurtis.d ~ Location, data = metadata.samplesN)
+
+
+```
+Plant N has long distance to both influent and process tank suggesting community is a mixture of both 
+
+### Figure 2a  
+
+The average abundance of the 25 most abundant genera in the influent (n=6) is shown along with their relative abundances in process tank and effluent for all WWTPs sampled during 3 months. 
+
+```{r, warning=FALSE, message=FALSE, fig.height=3, fig.width=8}
+
+d_pro_sup_eff <- amp_subset_samples(dnumbers, Plant %in% c("WWTP A","WWTP B","WWTP C","WWTP G","WWTP D","WWTP E","WWTP F","WWTP H", "WWTP I", "WWTP J", "WWTP K", "WWTP L", "WWTP M", "WWTP N"))
+
+d_pro_sup_eff1 <- amp_subset_samples(d_pro_sup_eff, Location %in% c("1_Influent","2_Process tank", "6_Effluent"))
+
+d_inf1 <- amp_subset_samples(d_pro_sup_eff, Location %in% c("1_Influent"))
+
+
+inftaxa2 <- amp_heatmap(d_inf1, 
+            group_by = "Type",
+            tax_aggregate = "OTU",
+            tax_show = 200,
+            plot_colorscale = "sqrt",
+            plot_values_size = 6,
+            color_vector = c("White", "Red"),
+            max_abundance = 30,
+            min_abundance = 0.1,
+            round = 1)+
+  theme(axis.text.x = element_text(size = 18, color = "black", vjust = 0.5),
+        axis.text.y = element_text(size = 18, color = "black"),
+        strip.text = element_text(size = 20, color = "black"),
+        legend.position = "none")
+
+
+generainf <- amp_heatmap(d_inf1, 
+            group_by = "Type",
+            tax_aggregate = "Genus",
+            tax_show = 20000,
+            plot_colorscale = "sqrt",
+            plot_values_size = 6,
+            color_vector = c("White", "Red"),
+            max_abundance = 30,
+            min_abundance = 0.1,
+            round = 1)+
+  theme(axis.text.x = element_text(size = 18, color = "black", vjust = 0.5),
+        axis.text.y = element_text(size = 18, color = "black"),
+        strip.text = element_text(size = 20, color = "black"),
+        legend.position = "none")
+
+listgenera <- generainf$data$Display
+
+write.csv(listgenera,"listgenera.csv")
+
+
+top25inf  <- amp_heatmap(d_inf1, 
+            group_by = c("Plant", "Week"), 
+            tax_aggregate = "Genus",
+            tax_show = 10,
+            plot_colorscale = "sqrt",
+            plot_values_size = 4,
+            color_vector = c("White", "Red"),
+            max_abundance = 30,
+            round = 1)+
+  theme(axis.text.x = element_text(size = 18, color = "black", vjust = 0.5),
+        axis.text.y = element_text(size = 18, color = "black"),
+        strip.text = element_text(size = 20, color = "black"),
+        legend.position = "none")
+
+
+yaverageinfluent_order <- top25inf$data$Display %>% droplevels() %>% levels()
+
+
+
+location <- c(
+                    `1_Influent` = "Influent",
+                    `2_Process tank` = "Process tank",
+                    `6_Effluent` = "Effluent"
+                    )
+
+figure2 <-amp_heatmap(d_pro_sup_eff1, 
+            group_by = c("Location", "Plant"), 
+            tax_aggregate = "Genus",
+            tax_show = yaverageinfluent_order,
+            order_y = yaverageinfluent_order,
+            plot_colorscale = "sqrt",
+            plot_values_size = 2,
+            plot_values = TRUE,
+            color_vector = c("White", "Red"),
+            max_abundance = 30) +
+  theme(axis.text.x = element_text(size = 7, color = "black", vjust = 0.5),
+        axis.text.y = element_text(size = 7, color = "black"),
+        strip.text = element_text(size = 9, color = "black"),
+        legend.position = "none", legend.title=element_text(size=15), legend.text=element_text(size = 14))+
+  facet_wrap(~Location, scales = "free_x", labeller = as_labeller(location))
+
+
+## changing labels 
+
+original_labelseff<-levels(figure2$data$Group)
+
+new_labelseff <- (sub("1_","", original_labelseff))
+new_labelseff <- (sub("2_","", new_labelseff))
+new_labelseff <- (sub("6_","", new_labelseff))
+new_labelseff <- (sub("tank","", new_labelseff))
+new_labelseff <- (sub(".*? ", "", new_labelseff))
+ 
+
+figure2$data$Group.label<-mapvalues(figure2$data$Group,original_labelseff,c(new_labelseff)) 
+figure2<-figure2+aes(x=figure2$data$Group.label)+theme(axis.title.x=element_blank(), strip.text.x = element_text(margin = margin(.2, 0, .2, 0, "cm")))
+
+
+figure2
+
+ggsave(filename = "fig2a.pdf",plot = figure2,width = 28,height = 8)
+ggsave(filename = "fig2a.png",plot = figure2,width = 28,height = 8)
+ggsave(filename = "fig2a.tiff",plot = figure2,width = 8.5,height = 3)
+
+
+
+
+```
+
+### Figure 2b  
+
+Figure 2b shows the average abundance of the 25 most abundant genera in the process tanks (n=6) along with their relative abundances in influent and effluent for all WWTPs sampled during 3 months.
+
+
+```{r, warning=FALSE, message=FALSE, fig.height=3, fig.width=8}
+
+d_pro1 <- amp_subset_samples(d_pro_sup_eff, Location %in% c("2_Process tank"))
+
+top25pro  <- amp_heatmap(d_pro1, 
+            group_by = c("Plant", "Week"), 
+            tax_aggregate = "Genus",
+            tax_show = 10,
+            plot_colorscale = "sqrt",
+            plot_values_size = 6,
+            color_vector = c("White", "Red"),
+            max_abundance = 30,
+            round = 1)+
+  theme(axis.text.x = element_text(size = 18, color = "black", vjust = 0.5),
+        axis.text.y = element_text(size = 18, color = "black"),
+        strip.text = element_text(size = 20, color = "black"),
+        legend.position = "none")
+
+
+yaveragepro_order <- top25pro$data$Display %>% droplevels() %>% levels()
+
+
+
+location <- c(
+                    `1_Influent` = "Influent",
+                    `2_Process tank` = "Process tank",
+                    `6_Effluent` = "Effluent"
+                    )
+
+figur2b <-amp_heatmap(d_pro_sup_eff1, 
+            group_by = c("Location", "Plant"), 
+            tax_aggregate = "Genus",
+            tax_show = yaveragepro_order,
+            order_y = yaveragepro_order,
+            plot_colorscale = "sqrt",
+            plot_values_size = 2,
+            plot_values = TRUE,
+            color_vector = c("White", "Red"),
+            max_abundance = 30) +
+  theme(axis.text.x = element_text(size = 7, color = "black", vjust = 0.5),
+        axis.text.y = element_text(size = 7, color = "black"),
+        strip.text = element_text(size = 9, color = "black"),
+        legend.position = "none", legend.title=element_text(size=15), legend.text=element_text(size = 14))+
+  facet_wrap(~Location, scales = "free_x", labeller = as_labeller(location))
+
+
+## changing labels 
+
+original_labelseff<-levels(figur2b$data$Group)
+
+new_labelseff <- (sub("1_","", original_labelseff))
+new_labelseff <- (sub("2_","", new_labelseff))
+new_labelseff <- (sub("6_","", new_labelseff))
+new_labelseff <- (sub("tank","", new_labelseff))
+new_labelseff <- (sub(".*? ", "", new_labelseff))
+ 
+
+figur2b$data$Group.label<-mapvalues(figur2b$data$Group,original_labelseff,c(new_labelseff)) 
+figur2b<-figur2b+aes(x=figur2b$data$Group.label)+theme(axis.title.x=element_blank(), strip.text.x = element_text(margin = margin(.2, 0, .2, 0, "cm")))
+
+figur2b
+
+ggsave(filename = "fig2b.pdf",plot = figur2b,width = 28,height = 8)
+ggsave(filename = "fig2b.png",plot = figur2b,width = 28,height = 8)
+ggsave(filename = "fig2b.tiff",plot = figur2b,width = 8.5,height = 3)
+
+
+
+
+```
+
+
+### Figure 2c 
+
+Figure 2c shows the average abundance of the 25 most abundant genera in the effluents (n=6) along with their relative abundances in influent and process tanks for all WWTPs sampled during 3 months.
+
+```{r, warning=FALSE, message=FALSE, fig.height=3, fig.width=8}
+d_eff1 <- amp_subset_samples(d_pro_sup_eff, Location %in% c("6_Effluent"))
+
+
+top25eff  <- amp_heatmap(d_eff1, 
+            group_by = c("Plant", "Week"), 
+            tax_aggregate = "Genus",
+            tax_show = 10,
+            plot_colorscale = "sqrt",
+            plot_values_size = 2,
+            color_vector = c("White", "Red"),
+            max_abundance = 30,
+            round = 1)+
+  theme(axis.text.x = element_text(size = 7, color = "black", vjust = 0.5),
+        axis.text.y = element_text(size = 7, color = "black"),
+        strip.text = element_text(size = 7, color = "black"),
+        legend.position = "none")
+
+
+yaverageeff_order <- top25eff$data$Display %>% droplevels() %>% levels()
+
+
+
+location <- c(
+                    `1_Influent` = "Influent",
+                    `2_Process tank` = "Process tank",
+                    `6_Effluent` = "Effluent"
+                    )
+
+figur2c <-amp_heatmap(d_pro_sup_eff1, 
+            group_by = c("Location", "Plant"), 
+            tax_aggregate = "Genus",
+            tax_show = yaverageeff_order,
+            order_y = yaverageeff_order,
+            plot_colorscale = "sqrt",
+            plot_values_size = 2,
+            plot_values = TRUE,
+            color_vector = c("White", "Red"),
+            max_abundance = 30) +
+  theme(axis.text.x = element_text(size = 7, color = "black", vjust = 0.5),
+        axis.text.y = element_text(size = 7, color = "black"),
+        strip.text = element_text(size = 9, color = "black"),
+        legend.position = "none", legend.title=element_text(size=15), legend.text=element_text(size = 14))+
+  facet_wrap(~Location, scales = "free_x", labeller = as_labeller(location))
+
+
+## changing labels 
+
+original_labelseff<-levels(figur2b$data$Group)
+
+new_labelseff <- (sub("1_","", original_labelseff))
+new_labelseff <- (sub("2_","", new_labelseff))
+new_labelseff <- (sub("6_","", new_labelseff))
+new_labelseff <- (sub("tank","", new_labelseff))
+new_labelseff <- (sub(".*? ", "", new_labelseff))
+ 
+
+figur2c$data$Group.label<-mapvalues(figur2c$data$Group,original_labelseff,c(new_labelseff)) 
+figur2c<-figur2c+aes(x=figur2c$data$Group.label)+theme(axis.title.x=element_blank(), strip.text.x = element_text(margin = margin(.2, 0, .2, 0, "cm")))
+
+figur2c
+
+ggsave(filename = "fig2c.pdf",plot = figur2c,width = 28,height = 8)
+ggsave(filename = "fig2c.png",plot = figur2c,width = 28,height = 8)
+ggsave(filename = "fig2c.tiff",plot = figur2c,width = 8.7,height = 3)
+
+```
+
+
+
+### Figure 3a
+The most abundant genera of the influent, process tank and effluent over time for the wastewater treatment plant A. Heatmap for the fate of top 10 most abundant incoming bacteria there among *Arcobacter*.
+
+```{r,  warning=FALSE, message=FALSE, fig.height=4, fig.width=13, warning=FALSE, message=FALSE}
+
+d_inf <- amp_subset_samples(dpca, Location %in% c("Influent"))
+dn_aaw_inf <- amp_subset_samples(d_inf, Plant %in% c("WWTP A"))
+
+top10infaaw  <- amp_heatmap(dn_aaw_inf, 
+            group_by = c("Plant", "Week"), 
+            tax_aggregate = "Genus",
+            tax_show = 10,
+            plot_colorscale = "sqrt",
+            plot_values_size = 6,
+            color_vector = c("White", "Red"),
+            max_abundance = 30,
+            round = 1)+
+  theme(axis.text.x = element_text(size = 18, color = "black", vjust = 0.5),
+        axis.text.y = element_text(size = 18, color = "black"),
+        strip.text = element_text(size = 20, color = "black"),
+        legend.position = "none")
+        
+        
+
+d_aaw <- amp_subset_samples(dnumbers, Plant %in% c("WWTP A"))
+
+d_aaw <- amp_subset_samples(d_aaw, Location %in% c("1_Influent", "2_Process tank", "6_Effluent"))
+
+
+yaverageinfluent_orderaaw <- top10infaaw$data$Display %>% droplevels() %>% levels()
+
+poster_gen <- amp_heatmap(data = d_aaw, 
+            group_by = c("Location","Week"), 
+            tax_aggregate = "Genus",
+            tax_show = yaverageinfluent_orderaaw,
+            order_y = yaverageinfluent_orderaaw,
+            plot_colorscale = "sqrt",
+            plot_values_size = 6,
+            color_vector = c("White", "Red"),
+            max_abundance = 30) +
+  theme(axis.text.x = element_text(size = 18, color = "black", vjust = 0.5),
+        axis.text.y = element_text(size = 18, color = "black"),
+        strip.text = element_text(size = 20, color = "black"),
+        legend.position = "none", legend.title=element_text(size=15), legend.text=element_text(size = 14))+
+  facet_wrap(~Location, scales = "free_x", labeller = as_labeller(location))
+
+
+original_labelseff<-levels(poster_gen$data$Group)
+
+new_labelseff <- (sub("1_","", original_labelseff))
+new_labelseff <- (sub("2_","", new_labelseff))
+new_labelseff <- (sub("6_","", new_labelseff))
+new_labelseff <- toupper(sub(".*? ", "", new_labelseff))
+
+
+new_labelseff <- (sub("TANK ","", new_labelseff))
+
+poster_gen$data$Group.label<-mapvalues(poster_gen$data$Group,original_labelseff,c(new_labelseff)) 
+poster_gen<-poster_gen+aes(x=poster_gen$data$Group.label)+theme(axis.title.x=element_blank(), strip.text.x = element_text(margin = margin(.1, 0, .1, 0, "cm")))
+
+poster_gen
+
+ggsave(filename = "poster.pdf",plot = poster_gen,width = 13,height = 4)
+ggsave(filename = "poster.png",plot = poster_gen,width = 13,height = 4)
+ggsave(filename = "poster.tiff",plot = poster_gen,width = 13,height = 4)
+
+
+```
+
+
+### Figure s1
+Average abundance of most abundant ASVs in the influents of 14 Danish Wastewater treatment plants
+```{r load_data, warning=FALSE, message=FALSE, fig.height=20, fig.width=25}
+
+#The number of ASVs in influent total
+
+dn_infs1 <- amp_subset_samples(dnumbers, Plant %in% c("WWTP A","WWTP B","WWTP C","WWTP G","WWTP D","WWTP E","WWTP F","WWTP H", "WWTP I", "WWTP J", "WWTP K", "WWTP L", "WWTP M", "WWTP N"))
+
+dn_infs1 <- amp_subset_samples(dn_infs1, Location %in% c("1_Influent"))
+
+
+
+
+list_OTUs <- amp_heatmap(data = dn_infs1,
+            tax_aggregate = "OTU",
+            tax_add = "Genus",
+            tax_show = 250000,
+            plot_colorscale = "sqrt",
+            plot_values_size = 6,
+            color_vector = c("White", "Red"),
+            max_abundance = 30,
+            round = 1)+
+  theme(axis.text.x = element_text(size = 18, color = "black", vjust = 0.5),
+        axis.text.y = element_text(size = 18, color = "black"),
+        strip.text = element_text(size = 20, color = "black"),
+        legend.position = "none")
+
+otus <- list_OTUs$data$Display
+
+
+influent_OTUs <-amp_heatmap(data = dn_infs1, 
+            group_by = c("Plant","Date"), 
+            tax_aggregate = "Species",
+            tax_add = "Genus",
+            tax_show = 10,
+            plot_colorscale = "sqrt",
+            plot_values_size = 6,
+            color_vector = c("White", "Red"),
+            max_abundance = 30,
+            round = 1)+
+  theme(axis.text.x = element_text(size = 18, color = "black", vjust = 0.5),
+        axis.text.y = element_text(size = 18, color = "black"),
+        strip.text = element_text(size = 20, color = "black"),
+        legend.position = "right", legend.title=element_text(size=15), legend.text=element_text(size = 14))+
+  facet_wrap(~Plant, scales = "free_x")
+
+  
+## changing labels 
+
+original_labels<-levels(influent_OTUs$data$Group)
+new_labels <- toupper(sub(".*? ", "", original_labels))
+new_labels <- (sub("A ","", new_labels))
+new_labels <- (sub("B ","", new_labels))
+new_labels <- (sub("C ","", new_labels))
+new_labels <- (sub("D ","", new_labels))
+new_labels <- (sub("E ","", new_labels))
+new_labels <- (sub("F ","", new_labels))
+new_labels <- (sub("G ","", new_labels))
+new_labels <- (sub("H ","", new_labels))
+new_labels <- (sub("I ","", new_labels))
+new_labels <- (sub("J ","", new_labels))
+new_labels <- (sub("K ","", new_labels))
+new_labels <- (sub("L ","", new_labels))
+new_labels <- (sub("M ","", new_labels))
+new_labels <- (sub("N ","", new_labels))
+
+
+influent_OTUs$data$Group.label<-mapvalues(influent_OTUs$data$Group,original_labels,c(new_labels)) 
+influent_OTUs<-influent_OTUs+aes(x=influent_OTUs$data$Group.label)+theme(axis.title.x=element_blank(), strip.text.x = element_text(margin = margin(.2, 0, .2, 0, "cm")))
+
+influent_OTUs
+
+ggsave(filename = "s1.pdf",plot = influent_OTUs,width = 25,height = 20)
+ggsave(filename = "s1.png",plot = influent_OTUs,width = 25,height = 20)
+
+```
+
+### Figure s2 
+Heatmaps with timepoints for all 14 wastewater treatment plants
+```{r,  warning=FALSE, message=FALSE, fig.height=30, fig.width=45}
+
+dn_overview14 <- amp_subset_samples(dnumbers, Plant %in% c("WWTP A","WWTP B","WWTP C","WWTP G","WWTP D","WWTP E","WWTP F","WWTP H", "WWTP I", "WWTP J", "WWTP K", "WWTP L", "WWTP M", "WWTP N"))
+
+dn_overview14 <- amp_subset_samples(dn_overview14, Location %in% c("1_Influent", "2_Process tank", "6_Effluent"))
+
+Overview_genera <-amp_heatmap(data = dn_overview14, 
+            group_by = c("Plant","Location","Date"), 
+            tax_aggregate = "Genus",
+            tax_show = 10,
+            plot_colorscale = "sqrt",
+            plot_values_size = 6,
+            color_vector = c("White", "Red"),
+            max_abundance = 30,
+            round = 1)+
+  theme(axis.text.x = element_text(size = 18, color = "black", vjust = 0.5),
+        axis.text.y = element_text(size = 18, color = "black"),
+        strip.text = element_text(size = 24, color = "black"),
+        legend.position = "right")+
+  facet_wrap(~Plant, scales = "free_x")
+
+## changing labels 
+
+original_labelseff<-levels(Overview_genera$data$Group)
+#new_labelseff <- (sub(".*? ", "", original_labelseff))
+new_labelseff <- (sub("1_","", original_labelseff))
+new_labelseff <- (sub("2_","", new_labelseff))
+new_labelseff <- (sub("6_","", new_labelseff)) 
+
+#new_labelseff <- (sub("WWTP A ","", original_labelseff))
+#new_labelseff <- (sub("WWTP B ","", new_labelseff))
+#new_labelseff <- (sub("WWTP C ","", new_labelseff))
+#new_labelseff <- (sub("WWTP D ","", new_labelseff))
+#new_labelseff <- (sub("WWTP E ","", new_labelseff))
+#new_labelseff <- (sub("WWTP F ","", new_labelseff))
+#new_labelseff <- (sub("WWTP G ","", new_labelseff))
+#new_labelseff <- (sub("WWTP H ","", new_labelseff))
+#new_labelseff <- (sub("WWTP I ","", new_labelseff))
+#new_labelseff <- (sub("WWTP J ","", new_labelseff))
+#new_labelseff <- (sub("WWTP K ","", new_labelseff))
+#new_labelseff <- (sub("WWTP L ","", new_labelseff))
+#new_labelseff <- (sub("WWTP M ","", new_labelseff))
+#new_labelseff <- (sub("WWTP N ","", new_labelseff))
+
+Overview_genera$data$Group.label<-mapvalues(Overview_genera$data$Group,original_labelseff,c(new_labelseff)) 
+Overview_genera<-Overview_genera+aes(x=Overview_genera$data$Group.label)+theme(axis.title.x=element_blank(), strip.text.x = element_text(margin = margin(.2, 0, .2, 0, "cm")))
+
+Overview_genera
+
+ggsave(filename = "s2.pdf",plot = Overview_genera,width = 45,height = 30)
+ggsave(filename = "s2.png",plot = Overview_genera,width = 45,height = 30)
+
+
+```
+
+### Figure s3
+Figure showing how dilution and filtration of activated sludge does not affect the community composition by diluting to influent and effluent cell concentation before filtration with 0.2 um polycarbonate filters. 
+
+```{r,   warning=FALSE, message=FALSE, fig.height=9, fig.width=8}
+
+#dcontrols_dilution <- amp_subset_samples(dcontrols,  SampleID %in% c("16SAMP-8984","16SAMP-8985","16SAMP-8986","16SAMP-8990","16SAMP-8991","16SAMP-8992","16SAMP-8993","16SAMP-8994"))
+
+dcontrols_dilution <- amp_subset_samples(dcontrols,  SampleID %in% c("16SAMP-7603","16SAMP-7604","16SAMP-7605","16SAMP-8984","16SAMP-8985","16SAMP-8986","16SAMP-8990","16SAMP-8991","16SAMP-8992","16SAMP-8993","16SAMP-8994"))
+
+s3 <- amp_heatmap(data = dcontrols_dilution, 
+            group_by = c("Plant","Location","Date"), 
+            tax_aggregate = "Genus",
+            tax_show = 10,
+            plot_colorscale = "sqrt",
+            plot_values_size = 6,
+            color_vector = c("White", "Red"),
+            max_abundance = 30,
+            round = 1)+
+  theme(axis.text.x = element_text(size = 18, color = "black", vjust = 0.5),
+        axis.text.y = element_text(size = 18, color = "black"),
+        strip.text = element_text(size = 24, color = "black"),
+        legend.position = "right")
+
+ggsave(filename = "s3.pdf",plot = s3,width = 9,height = 8)
+ggsave(filename = "s3.png",plot = s3,width = 9,height = 8)
+
+s3
+
+
+```
+
+### Figure 4a
+
+Analysing the waterphase of the sludge, compared to the microbial community of the total sludge sample.
+
+
+```{r,  warning=FALSE, message=FALSE, fig.height=6, fig.width=10}
+dn_overview14 <- amp_subset_samples(dnumbers, Plant %in% c("WWTP A","WWTP B","WWTP C","WWTP G","WWTP D","WWTP E","WWTP F","WWTP H", "WWTP I", "WWTP J", "WWTP K", "WWTP L", "WWTP M", "WWTP N"))
+
+
+waterphase <- amp_subset_samples(dn_overview14, Location %in% c("1_Influent","4_Sludge Supernatant","2_Process tank", "6_Effluent"))
+
+waterphase345 <- amp_subset_samples(dn_overview14, Location %in% c("3_Total Sludge","4_Sludge Supernatant"))
+
+location <- c(
+                    `3_Total Sludge`= "Total Sludge",
+                    `4_Sludge Supernatant` = "Sludge Supernatant"     )
+
+s4a <-amp_heatmap(waterphase345, 
+            group_by = c("Location", "Plant"), 
+            tax_aggregate = "Genus",
+            tax_show = 10,
+            plot_colorscale = "sqrt",
+            plot_values_size = 6,
+            plot_values = TRUE,
+            color_vector = c("White", "Red"),
+            max_abundance = 30) +
+  theme(axis.text.x = element_text(size = 18, color = "black", vjust = 0.5),
+        axis.text.y = element_text(size = 18, color = "black"),
+        strip.text = element_text(size = 25, color = "black"),
+        legend.position = "right", legend.title=element_text(size=15), legend.text=element_text(size = 14))+
+  facet_wrap(~Location, scales = "free_x", labeller = as_labeller(location))
+
+original_labelsarco<-levels(s4a$data$Group)
+#new_labelsarco <- (sub(".*? ", "", original_labelsarco))
+new_labelsarco <- (sub("3_","", original_labelsarco))
+new_labelsarco <- (sub("4_","", new_labelsarco))
+new_labelsarco <- (sub("5_","", new_labelsarco)) 
+new_labelsarco <- (sub("Total Sludge ","", new_labelsarco))
+new_labelsarco <- (sub("Sludge Supernatant ","", new_labelsarco))
+new_labelsarco <- (sub("Supernatant After Shear ","", new_labelsarco))
+
+s4a$data$Group.label<-mapvalues(s4a$data$Group,original_labelsarco,c(new_labelsarco)) 
+s4a<-s4a+aes(x=s4a$data$Group.label)+theme(axis.title.x=element_blank(), strip.text.x = element_text(margin = margin(.2, 0, .2, 0, "cm")))
+
+ggsave(filename = "s4a.pdf",plot = s4a,width = 25,height = 6)
+ggsave(filename = "s4a.png",plot = s4a,width = 25,height = 6)
+
+
+s4aa <- amp_boxplot(waterphase345, group_by = "Location", sort_by = "median",
+  plot_type = "boxplot", point_size = 1, tax_aggregate = "Genus",
+  tax_add = NULL, tax_show = 10, tax_empty = "best",
+  tax_class = NULL, order_group = NULL, order_y = NULL,
+  plot_flip = FALSE, plot_log = FALSE, adjust_zero = NULL,
+  normalise = TRUE, detailed_output = FALSE) +  geom_boxplot(lwd=1) + theme(axis.text.y = element_text(size = 16, color = "black"), axis.text.x = element_text(size = 14, color = "black"), axis.title.x = element_text(size = 14, color = "black"), legend.position = "right", legend.title=element_text(size=14), legend.text=element_text(size = 14))
+
+
+ggsave(filename = "4aa.pdf",plot = s4aa,width = 10,height = 7)
+ggsave(filename = "4aa.png",plot = s4aa,width = 10,height = 7)
+
+s4aa
+
+```
+
+### Figure 5
+The abundance of the 15 most abundant species-level Arcobacter
+```{r, warning=FALSE, message=FALSE, fig.height=6, fig.width=25}
+dn_overview14 <- amp_subset_samples(dnumbers, Plant %in% c("WWTP A","WWTP B","WWTP C","WWTP G","WWTP D","WWTP E","WWTP F","WWTP H", "WWTP I", "WWTP J", "WWTP K", "WWTP L", "WWTP M", "WWTP N"))
+
+dn_overview14a <- amp_subset_samples(dn_overview14, Location %in% c("1_Influent", "2_Process tank", "6_Effluent"))
+
+Arcobacter <- amp_subset_taxa(dn_overview14a, tax_vector=c("g__Arcobacter"),  normalise = TRUE)
+
+
+
+location <- c(
+                    `1_Influent` = "Influent",
+                    `2_Process tank` = "Process tank",
+                    `6_Effluent` = "Effluent"
+                    )
+
+
+
+
+fig5 <-amp_heatmap(data = Arcobacter, 
+            group_by = c("Plant","Location"), 
+            tax_aggregate = "Species",
+            tax_show = 15,
+            plot_colorscale = "sqrt",
+            plot_values_size = 6,
+            color_vector = c("White", "Red"),
+            normalise = FALSE,
+            max_abundance = 30,
+            round = 2)+
+  theme(axis.text.x = element_text(size = 18, color = "black", vjust = 0.5),
+        axis.text.y = element_text(size = 18, color = "black"),
+        strip.text = element_text(size = 24, color = "black"),
+        legend.position = "none", legend.title=element_text(size=15), legend.text=element_text(size = 14))+
+  facet_wrap(~Location, scales = "free_x", labeller = as_labeller(location))
+
+original_labelsarco<-levels(fig5$data$Group)
+#new_labelsarco <- (sub(".*? ", "", original_labelsarco))
+new_labelsarco <- (sub("1_","", original_labelsarco))
+new_labelsarco <- (sub("2_","", new_labelsarco))
+new_labelsarco <- (sub("6_","", new_labelsarco))
+new_labelsarco <- (sub("Influent","", new_labelsarco))
+new_labelsarco <- (sub("Process tank","", new_labelsarco))
+new_labelsarco <- (sub("Effluent","", new_labelsarco))
+
+
+fig5$data$Group.label<-mapvalues(fig5$data$Group,original_labelsarco,c(new_labelsarco)) 
+fig5<-fig5+aes(x=fig5$data$Group.label)+theme(axis.title.x=element_blank(), strip.text.x = element_text(margin = margin(.2, 0, .2, 0, "cm")))
+
+ggsave(filename = "fig5.pdf",plot = fig5,width = 29,height = 7)
+ggsave(filename = "fig5.png",plot = fig5,width = 29,height = 7)
+
+fig5
+
+```
+
+
+### Calculation example - Cell numbers and mass of bacteria in samples
+
+Standard example of biomass calculation. Number of cells in each sample was calculated based on the cell number found using (Saunders et al. 2015) method and then were converted into the mass of bacteria measured in SS/L and then converted to VSS in a given sample. 
+The following standard example is from wastewater treatment plant A at the sampling date 09-11-2014, For the general example in this study, the parameters are determined for a 'typical Danish treatment plant' with biological nutrient removal similar to what is done in Saunders et al. (2015).
+
+```{r,  warning=FALSE, message=FALSE}
+
+Vinfluent = 41560     #Volume influent [m3 day-1]
+
+SS_in = 0.085   #[g/L] Concentration of SS in the influent
+SS_AS = 3.4     #[g/L] Concentration of SS in the process tank
+SS_OUT = 0.0015 #[g/L] Concentration of SS in the effluent
+
+vSS_in = SS_in*0.70 #[g/L] conversion of SS to VSS (Frølund et al. 1996)
+vSS_AS = SS_AS*0.70  #[g/L]
+vSS_OUT = SS_OUT*0.70 #[g/L]
+
+cells_pr_gram_vss = 5*10^11 #[Cells/g VSS] Frølund et al. 1996
+
+```
+
+#### Determination of the number of cells in wastewater 
+```{r, warning=FALSE, message=FALSE}
+
+Nbacteria_influent <- 1.4*10^14 #Cells pr. m3 # 1.4*10^14 = a total abundance of organisms in the wastewater was assumed equal to previous reports for wastewater from the same region (Vollertsen et al. 2001) 
+
+
+nWW = Vinfluent * 1.4*10^14  #Cells in influent pr day 
+
+nWW
+
+```
+
+#### Determination of amount of VSS coming to the plant per day
+```{r,  warning=FALSE, message=FALSE}
+gram_vss_incoming_pr_day <- nWW / cells_pr_gram_vss  #Gram VSS pr. day
+ton_vss_incoming_pr_day <- gram_vss_incoming_pr_day / 10^6 #Ton VSS pr. day
+ton_vss_incoming_pr_day
+
+```
+
+
+#### Determination of the number of cells pr L in activated sludge and the total cell mass   
+```{r,  warning=FALSE, message=FALSE}
+
+nCells_pr_L <- vSS_AS*cells_pr_gram_vss
+nCells_pr_L   #Number of cells per L activated sludge
+
+
+VSS_AS <- 0.70*SS_AS   #VSS [g/L]
+
+
+gram_total_VSS_AS <- (Vinfluent*1000)*VSS_AS # Total gram VSS in activated sludge [g]
+
+Mass_AS <- gram_total_VSS_AS / 10^6 #Total ton VSS 
+#Volumes of process tanks unknown therefore we take the assume a HRT of the water in the process tank is similar to the amount of influent coming pr day
+
+Mass_AS    #Total ton VSS 
+
+nAS <- nCells_pr_L * 1000 * 39480  #39480 [m3] is the volume of the process tanks in WWTP A
+
+
+```
+
+#### Determination of the number of cells in effluent
+```{r,  warning=FALSE, message=FALSE}
+#Flow (Q) =  Flow(Influent) - Flow(Surplus sludge) = 0.97 * 41.56 * 103 m3 day-1
+#Effluent SS:  (1-5 mg SS L-1, here used 1.5 mg L-1):  1.5 mg SS L-1 = 1.5 * 10-3 g SS m-3
+
+
+nCells_pr_L_effluent <- SS_OUT*0.7*cells_pr_gram_vss
+nCells_pr_L_effluent  # A correction for the amount of vSS in effluent in this case we have aprox 5.2*10^8 Cells/L  
+
+
+gram_vss_effluent_pr_day <- nWW / cells_pr_gram_vss  #Gram VSS pr. day
+ton_vss_incoming_pr_day <- gram_vss_incoming_pr_day / 10^6 #Ton VSS pr. day
+ton_vss_incoming_pr_day
+
+effluentVolume <- (Vinfluent*97/100) #97% of influent water volume
+
+gram_VSS_eff <- (effluentVolume*1000) * vSS_OUT # Total gram VSS in effluent [g]
+
+VSS_eff <- gram_VSS_eff / 10^3 #Total Kg VSS
+
+VSS_eff
+
+
+```
+
+
+#### Calculation of percent removal efficiency
+```{r,  warning=FALSE, message=FALSE}
+E = (ton_vss_incoming_pr_day-(VSS_eff/1000))/ton_vss_incoming_pr_day*100 #(Henze et al. 2002)
+E
+```
+
+
+#### Calculation of percent removal efficiency of *Arcobacter*
+```{r,  warning=FALSE, message=FALSE}
+infab = 14.1  #16S abundance of *Arcobacter* in influent
+ASab = 0.9  #16S abundance of *Arcobacter* in activated sludge
+effab = 14.5  #16S abundance of *Arcobacter* in effluent
+
+cellsarcoinf = infab/100*ton_vss_incoming_pr_day
+
+cellsarcoeff = effab/100*VSS_eff
+
+Earco = (cellsarcoinf-(cellsarcoeff/1000))/cellsarcoinf*100 #(Henze et al. 2002)
+Earco
+```
+
+#### *Arcobacter* cells pr L influent	
+
+```{r,  warning=FALSE, message=FALSE}
+Arcoinf = (infab/100)*(1.4*10^14/1000)
+Arcoinf
+```
+
+#### *Arcobacter* cells pr L in process tank
+```{r,  warning=FALSE, message=FALSE}
+Arcopro = (ASab/100) * nCells_pr_L
+Arcopro
+
+```
+
+#### *Arcobacter* cells pr L effluent
+```{r,  warning=FALSE, message=FALSE}
+Arcoeff = (effab/100)*nCells_pr_L_effluent
+Arcoeff
+
+```
+
+### Growth rates of top 10 genera in wastewater calculated for wastewater treatment plant A 
+To determine if bacteria abundant in the influent have active net growth in process tanks the net growth rate constants are calculated for top 10 genera in figure 2 as described in Saunders et al. 2016.  
+```{r,  warning=FALSE, message=FALSE}
+
+# K = (pAS * nSP - pWW * nWW) / (pAS * nAS)  Saunders et al. 2016
+ 
+
+nSP = nAS / 35
+
+
+col_a <- c("Trichococcus", "Streptococcus", "Arcobacter", "Blautia", "Acidovorax", "Lactococcus", "Subdogranulum", "Enterococcus", "Leptotrichia", "Comamonas") 
+
+col_b <- c((3.5 * nSP - 5.1 * nWW) / (3.5 *nAS), (1.4 * nSP  - 11.9 * nWW) / (1.4 *nAS), (0.6 * nSP - 15.3 * nWW) / (0.6 *nAS), (0.4 * nSP - 3.9 * nWW) / (0.4 *nAS), (0.8 * nSP - 3.4 * nWW) / (0.8 *nAS), (0.2 * nSP - 0.7 * nWW) / (0.2 *nAS), (0.2 * nSP - 1.5 * nWW) / (0.2 *nAS), (0.1 * nSP - 0.6 * nWW) / (0.1 *nAS), (0.2 * nSP - 0.8 * nWW) / (0.2 *nAS), (0.3 * nSP - 2.8 * nWW) / (0.3 *nAS)  )
+
+table <- matrix(col_b,ncol=1,byrow=TRUE)
+
+colnames(table) <- c("Net growth rate constant")
+rownames(table) <- c(col_a) 
+table <- as.table(table)
+table
+
+
+```
+
+
+
+
+### Genomic and Metagenomic analysis reveal isolated *Arcobacter* to be pathogenic
+Arcobacter was detected in the influent as well as the effluent at WWTPs. Following this observation it was assessed whether these organisms were alive by isolating them from the influent and effluent wastewater from WWTP A. 
+Viable cells were found, their DNA was extracted and sequenced. In addition samples from the influent and effluent streams were analysed using metagenome sequencing to assess whether the obtained isolates match the most abundant organisms in the wild or they represented a less abundant version. From the isolates it was also investigated if the isolated *Arcobacter* strains were pathogenic.
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r echo=FALSE, warning=FALSE, message= FALSE}
+require("mmgenome2", quietly = T)
+require("tidyverse", quietly = T)
+```
+
+### Quality control of assemblies
+
+#### Pure culture NexPE-387
+
+Analysing the data from this assembly revealed only 1 organism, the data is okay for further analysis
+```{r echo=TRUE, warning=FALSE, message= FALSE}
+d387<- mmload(assembly = "data/NexPE-387/assembly.fasta",
+            coverage = "data/NexPE-387/",
+            essential_genes = read_csv(paste0("data/NexPE-387/essential.csv"), T),
+            taxonomy =  read_csv("data/NexPE-387/tax.csv", T, col_types = cols("c", "c")),
+            kmer_pca = F,
+            kmer_BH_tSNE = F,kmer_size = 5,
+            num_threads = 2
+)
+d387assembly<-assembly
+rm(assembly)
+#d387_PEnetwork<-read.csv("data/NexPE-387/network.txt")
+```
+
+
+```{r fig.height=10, fig.width=10, echo=TRUE, warning=FALSE, message= FALSE}
+mmplot(mm = d387,
+       x = "length",
+       y = "cov_NexPE387",
+       color_by = "phylum")+expand_limits(y=0)
+```
+
+#### Pure culture NexPE-388
+This genome is found to be contaminated and is therefore cleaned by differential coverage binning before further analysis. 
+```{r echo=TRUE, warning=FALSE, message= FALSE}
+d388<- mmload(assembly = "data/NexPE-388/assembly.fasta",
+            coverage = "data/NexPE-388/",
+            essential_genes = read_csv(paste0("data/NexPE-388/essential.csv"), T),
+            taxonomy =  read_csv("data/NexPE-388/tax.csv", T, col_types = cols("c", "c")),
+            kmer_pca = F,
+            kmer_BH_tSNE = F,kmer_size = 5,
+            num_threads = 2
+)
+d388assembly<-assembly
+rm(assembly)
+#d388_PEnetwork<-read.csv("data/NexPE-388/network.txt")
+```
+
+
+```{r fig.height=10, fig.width=10, echo=TRUE, warning=FALSE, message= FALSE}
+
+sel <- data.frame(length = c(0, 52820.684, 52721.696, 8785.992, 6809.334,4),
+           cov_NexPE388 = c(97.292, 80.706, 357.931, 502.467, 1168.281, 1194.042))
+
+mmplot(mm = d388,locator = F, selection = sel,
+       x = "length",
+       y = "cov_NexPE388",
+       color_by = "phylum"
+       )
+
+mm_subset_d388 <- d388 %>% filter(cov_NexPE388>100)
+
+mmplot(mm = d388,locator = F, selection = sel,
+       x = "length",highlight_scaffolds = mm_subset_d388,
+       y = "cov_NexPE388",
+       color_by = "phylum"
+       )
+
+mmexport(mm_subset_d388,
+         assembly = d388assembly,
+         file = "d388clean.fa")
+
+
+```
+
+#### Pure culture NexPE-389
+
+Analysing the data from this assembly revealed only 1 organism, the data is okay for further analysis
+
+```{r fig.height=10, fig.width=10, echo=TRUE, warning=FALSE, message= FALSE}
+d389<- mmload(assembly = "data/NexPE-389/assembly.fasta",
+            coverage = "data/NexPE-389/",
+            essential_genes = read_csv(paste0("data/NexPE-389/essential.csv"), T),
+            taxonomy =  read_csv("data/NexPE-389/tax.csv", T, col_types = cols("c", "c")),
+            kmer_pca = F,
+            kmer_BH_tSNE = F,kmer_size = 5,
+            num_threads = 2
+)
+d389assembly<-assembly
+rm(assembly)
+#d389_PEnetwork<-read.csv("data/NexPE-389/network.txt")
+```
+
+
+```{r fig.height=10, fig.width=10, echo=TRUE, warning=FALSE, message= FALSE}
+mmplot(mm = d389,
+       x = "length",
+       y = "cov_NexPE389",
+       color_by = "phylum")+expand_limits(y=0)
+```
+
+#### Pure culture NexPE-390
+This genome is found to be contaminated and is therefore cleaned by differential coverage binning before further analysis.
+```{r fig.height=10, fig.width=10, echo=TRUE, warning=FALSE, message= FALSE}
+d390<- mmload(assembly = "data/NexPE-390/assembly.fasta",
+            coverage = "data/NexPE-390/",
+            essential_genes = read_csv(paste0("data/NexPE-390/essential.csv"), T),
+            taxonomy =  read_csv("data/NexPE-390/tax.csv", T, col_types = cols("c", "c")),
+            kmer_pca = F,
+            kmer_BH_tSNE = F,kmer_size = 5,
+            num_threads = 2
+)
+d390assembly<-assembly
+rm(assembly)
+#d390_PEnetwork<-read.csv("data/NexPE-390/network.txt")
+```
+
+
+```{r fig.height=10, fig.width=10, echo=TRUE, warning=FALSE, message= FALSE}
+
+sel <- data.frame(length = c(0, 52820.684, 52721.696, 8785.992, 6809.334,4),
+           cov_NexPE388 = c(97.292, 80.706, 357.931, 502.467, 1168.281, 1194.042))
+
+mmplot(mm = d390,locator = F, selection = sel,
+       x = "length",
+       y = "cov_NexPE390",
+       color_by = "phylum"
+       )
+
+mm_subset_d390 <- d390 %>% filter(cov_NexPE390>100)
+
+mmplot(mm = d390,locator = F, selection = sel,
+       x = "length",highlight_scaffolds = mm_subset_d390,
+       y = "cov_NexPE390",
+       color_by = "phylum"
+       )
+
+mmexport(mm_subset_d390,
+         assembly = d390assembly,
+         file = "d390clean.fa")
+
+
+```
+
+
+### Final stats for genomes
+```{r fig.height=10, fig.width=10, echo=TRUE, warning=FALSE, message= FALSE}
+library("dplyr")
+library(gridExtra)
+library(grid)
+
+ checkmstats <- read_csv("data/assemblystats.csv") %>% 
+                select(bin,
+                 Genome_size,
+                 GC,
+                 Longest_scaffold,
+                 N50_scaffolds,
+                 #n_scaffolds,
+                 n_contigs,
+                 n_ambiguous_bases,
+                 Completeness,
+                 Contamination) %>%
+          mutate(GC=round(GC*100,1))
+
+colnames(checkmstats)<-c("Genome",
+                       "Genome\nsize",
+                       "GC\ncontent\n(%)",
+                       "Longest\nscaffold",
+                       "Scaffold\nN50",
+                       #"#\nScaffolds",
+                       "#\nContigs",
+                       "# Ns",
+                       "Completeness\n(%)",
+                       "Contamination\n(%)")
+
+tt3 <- ttheme_default(core=list(fg_params=list(hjust=1, x = 0.95, fontsize = 8)),
+                      colhead=list(fg_params=list(fontsize = 10)))
+grid.table(checkmstats, rows= NULL, theme = tt3)
+
+```
+
+
+#### Metagenome NexPE-391
+This figure show the coverage of the influent metagenome (NexPE-391) and the effluent metagenome (NexPE-364), on the influent metagenome assembly for plant A. It can be seen that almost all contigs that has assembled from the influent also can be found in the effluent, however it has lower coverage in the effluent.    
+```{r  fig.height=10, fig.width=10, echo=TRUE, warning=FALSE, message= FALSE}
+d391<- mmload(assembly = "data/NexPE-391/assembly.fasta",
+            coverage = "data/NexPE-391/",
+            essential_genes = read_csv(paste0("data/NexPE-391/essential.csv"), T),
+            taxonomy =  read_csv("data/NexPE-391/tax.csv", T, col_types = cols("c", "c")),
+            kmer_pca = F,
+            kmer_BH_tSNE = F,kmer_size = 5,
+            num_threads = 2
+)
+d391assembly<-assembly
+rm(assembly)
+#d391_PEnetwork<-read.csv("data/NexPE-391/network.txt")
+```
+
+
+```{r fig.height=10, fig.width=10, echo=TRUE, warning=FALSE, message= FALSE}
+mmplot(mm = d391,
+       x = "cov_NexPE364",x_scale = "log10",
+       y = "cov_NexPE391",y_scale = "log10",
+       color_by = "phylum")
+```
+
+#### Metagenome NexPE-364
+This figure show the coverage of the influent metagenome (NexPE-391) and the effluent metagenome (NexPE-364), on the effluent metagenome assembly for plant A. This clearly shows a fractionated community where the effluent is split in half between what is commonly found in the influent and what is found in the process tank, emphasizing that for this wastewater treatment plant the effluent community is a combination of influent and process tank community and not only illustrating the process tank community.
+
+```{r  fig.height=10, fig.width=10, echo=TRUE, warning=FALSE, message= FALSE}
+d364<- mmload(assembly = "data/NexPE-364/assembly.fasta",
+            coverage = "data/NexPE-364/",
+            essential_genes = read_csv(paste0("data/NexPE-364/essential.csv"), T),
+            taxonomy =  read_csv("data/NexPE-364/tax.csv", T, col_types = cols("c", "c")),
+            kmer_pca = F,
+            kmer_BH_tSNE = F,kmer_size = 5,
+            num_threads = 2
+)
+d364assembly<-assembly
+rm(assembly)
+#d364_PEnetwork<-read.csv("data/NexPE-364/network.txt")
+```
+
+
+```{r fig.height=10, fig.width=10, echo=TRUE, warning=FALSE, message= FALSE}
+mmplot(mm = d364,
+       x = "cov_NexPE391",x_scale = "log10",
+       y = "cov_NexPE364",y_scale = "log10",
+       color_by = "phylum")
+```
+
+### Visualizing Arcobacter 16s genes and virulence genes Figure s4
+Figure s4 show the coverage of the influent metagenome (NexPE-391) and the effluent metagenome (NexPE-364), on the influent metagenome assembly for plant A. on this figure the 2 most abundant Arcobacter 16s rRNA gene contigs are highlighted and their closest known taxa found with NCBI-Blast is written. The Arcobacter 16S with most coverage is the same as the one with most abundance found by amplicons. The coverage however is lower in effluent than in influent.
+
+```{r fig.height=10, fig.width=10, echo=TRUE, warning=FALSE, message= FALSE}
+d391$taxonomy<-NA
+
+d391$taxonomy[which(d391$scaffold==1895)]<-"16S rRNA - Arcobacter cryaerophilus"
+d391$taxonomy[which(d391$scaffold==4178)]<-"16S rRNA - Arcobacter suis"
+d391$taxonomy[which(d391$scaffold==66159)]<-"Virulence gene - pldA"
+d391$taxonomy[which(d391$scaffold==3116)]<-"Virulence gene - tlyA"
+d391$taxonomy[which(d391$scaffold==17851)]<-"Virulence gene - tlyA"
+d391$taxonomy[which(d391$scaffold==45727)]<-"Virulence gene - tlyA"
+
+
+mmplot(mm = d391,
+       x = "cov_NexPE364",x_scale = "log10",
+       y = "cov_NexPE391",y_scale = "log10",
+       color_by = "phylum",
+       highlight_scaffolds = c("1895", "4178","66159","3116", "17851","45727"),
+       label_scaffolds = c("1895", "4178","66159","3116", "17851","45727"),label_scaffolds_by = "taxonomy") + xlab("cov metagenome Effluent")+ ylab("cov metagenome Influent") + labs("cov *Arcobacter* genome 1")
+
+
+ggsave(filename = "d391_warcobacter.png",width = 10,height = 10)
+
+
+mmplot(mm = d391,
+       x = "cov_NexPE364",x_scale = "log10",
+       y = "cov_NexPE391",y_scale = "log10",
+       color_by = "cov_NexPE387",
+       highlight_scaffolds = c("1895", "4178", "66159","3116", "17851","45727"),
+       label_scaffolds = c("1895", "4178","66159","3116", "17851","45727")) + xlab("cov metagenome Effluent")+ ylab("cov metagenome Influent") + labs("cov *Arcobacter* genome 1")
+
+
+
+
+```
